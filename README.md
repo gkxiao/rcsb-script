@@ -1,4 +1,4 @@
-# ✅ 根据Uniport检索PDB用途说明
+# ✅ 根据Uniport检索PDB代码
 
 根据 UniPort accession code 检索 RCSB，返回 PDB code。
 
