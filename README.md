@@ -44,3 +44,20 @@ python query_pdb.py -u P00533 --method "X-RAY DIFFRACTION" --resolution 3.0
 python query_pdb.py -u P00533 --limit 50
 ```
 
+# ⚠️ 重要提醒
+
+对于像 **EGFR（P00533）**这样的靶标，你会遇到：
+
+* kinase domain vs full-length 混杂
+* mutant（T790M 等）
+* covalent inhibitor
+* inactive/active state
+
+👉 所以：
+
+这个脚本只是 **第一步（数据获取）**
+真正关键的是后面的：
+
+```text
+structure filtering → pocket alignment → clustering → representative selection
+```
