@@ -1,3 +1,9 @@
+# ✅ 用途说明
+
+根据 UniProt accession code 检索 RCSB，返回 PDB code。
+
+---
+
 # ✅ 安装API
 
 ```bash
