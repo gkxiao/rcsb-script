@@ -61,3 +61,37 @@ python query_pdb.py -u P00533 --limit 50
 ```text
 structure filtering → pocket alignment → clustering → representative selection
 ```
+
+---
+
+# ✅ 下载PDB使用示例
+
+### 1️⃣ 下载单个结构
+
+```bash
+python download_pdb.py -p 1A2C
+```
+
+---
+
+### 2️⃣ 下载多个结构
+
+```bash
+python download_pdb.py -p 1A2C 2HYY 4G5J
+```
+
+---
+
+### 3️⃣ 指定输出目录
+
+```bash
+python download_pdb.py -p 1A2C 2HYY -o structures
+```
+
+---
+
+### 4️⃣ 下载 mmCIF（推荐用于大体系 / cryo-EM）
+
+```bash
+python download_pdb.py -p 7KGH --format cif
+```
