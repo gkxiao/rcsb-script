@@ -7,7 +7,7 @@
 # ✅ 安装API
 
 ```bash
-pip install rcsbsearchapi
+pip install rcsb-api
 ```
 
 ---
