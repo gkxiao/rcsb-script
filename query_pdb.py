@@ -1,7 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 import argparse
-from rcsbsearchapi import rcsb_attributes as attrs
+# 修改1: 将导入语句从 rcsbsearchapi 改为 rcsb-api 的 search 模块
+from rcsbapi.search import search_attributes as attrs
 
 
 def parse_args():
@@ -36,6 +37,7 @@ def parse_args():
 def main():
     args = parse_args()
 
+    # 【无需修改】属性路径遵循 RCSB PDB 官方标准 Schema，在 rcsb-api 中保持一致
     # UniProt query
     q = (
         attrs.rcsb_polymer_entity_container_identifiers
@@ -54,6 +56,7 @@ def main():
         q = q & (attrs.rcsb_entry_info.resolution_combined < args.resolution)
 
     # execute query
+    # 修改2. 在 rcsb-api 中，list(q()) 依然有效，也可以使用 q.exec()
     pdb_ids = list(q())
 
     print(f"Total PDB entries: {len(pdb_ids)}")
