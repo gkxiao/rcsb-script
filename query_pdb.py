@@ -8,7 +8,7 @@ from rcsbapi.search import NestedAttributeQuery, AttributeQuery, search_attribut
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Query RCSB PDB entries by UniProt accession")
-    parser.add_argument("-u", "--uniprot", required=True, help="UniProt accession (e.g., P09619)")
+    parser.add_argument("-u", "--uniprot", required=True, help="UniProt accession (e.g., P00533)")
     parser.add_argument("--method", default=None, help="Experimental method filter (e.g., X-RAY DIFFRACTION)")
     parser.add_argument("--resolution", type=float, default=None, help="Resolution cutoff (e.g., 3.0)")
     parser.add_argument("--limit", type=int, default=20, help="Number of PDB IDs to preview")
