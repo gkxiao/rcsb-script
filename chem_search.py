@@ -1,4 +1,4 @@
-from rcsbsearchapi.search import ChemSimilarityQuery
+from rcsbapi.search import ChemSimilarityQuery
 
 # Query with type = descriptor, descriptor type = SMILES, match type = similar ligands (sterospecific) or graph-relaxed-stereo
 q2 = ChemSimilarityQuery(value="Cc1c(sc[n+]1Cc2cnc(nc2N)C)CCO",
