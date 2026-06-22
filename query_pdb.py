@@ -3,11 +3,12 @@
 import argparse
 import pandas as pd
 import requests
+import time
 from rcsbapi.search import NestedAttributeQuery, AttributeQuery, search_attributes as attrs
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Query RCSB PDB entries by UniProt accession")
-    parser.add_argument("-u", "--uniprot", required=True, help="UniProt accession (e.g., P00533)")
+    parser.add_argument("-u", "--uniprot", required=True, help="UniProt accession (e.g., P09619)")
     parser.add_argument("--method", default=None, help="Experimental method filter (e.g., X-RAY DIFFRACTION)")
     parser.add_argument("--resolution", type=float, default=None, help="Resolution cutoff (e.g., 3.0)")
     parser.add_argument("--limit", type=int, default=20, help="Number of PDB IDs to preview")
@@ -28,15 +29,15 @@ def get_pdb_ids_via_search(args):
             value="UniProt"
         )
     )
-
+    
     # 组合筛选条件
     q = q_uniprot & (attrs.rcsb_entry_info.structure_determination_methodology == "experimental")
-
+    
     if args.method:
         q = q & (attrs.exptl.method == args.method)
     if args.resolution:
         q = q & (attrs.rcsb_entry_info.resolution_combined < args.resolution)
-
+        
     return list(q())
 
 def _query_graphql_batch(pdb_ids_batch, uniprot_ac):
@@ -66,9 +67,9 @@ def _query_graphql_batch(pdb_ids_batch, uniprot_ac):
         }}
       }}
     }}''')
-
+    
     query = "{\n" + "\n".join(entry_queries) + "\n}"
-
+    
     url = "https://data.rcsb.org/graphql"
     try:
         resp = requests.post(url, json={"query": query}, timeout=60)
@@ -78,24 +79,24 @@ def _query_graphql_batch(pdb_ids_batch, uniprot_ac):
     except Exception as e:
         print(f"  GraphQL batch query failed: {e}")
         return []
-
+    
     if "errors" in data:
         print(f"  GraphQL errors: {data['errors'][:2]}")
-
+    
     table_data = []
     for pdb_id in pdb_ids_batch:
         key = f"e_{pdb_id}"
         entry = data.get("data", {}).get(key)
         if not entry:
             continue
-
+        
         release_date = entry.get("rcsb_accession_info", {}).get("initial_release_date", "N/A")
         if release_date != "N/A":
             release_date = release_date.split("T")[0]
-
+        
         exptl_list = entry.get("exptl") or []
         method = exptl_list[0].get("method", "N/A") if exptl_list else "N/A"
-
+        
         chain_parts = []
         for entity in (entry.get("polymer_entities") or []):
             rci = entity.get("rcsb_polymer_entity_container_identifiers") or {}
@@ -106,9 +107,9 @@ def _query_graphql_batch(pdb_ids_batch, uniprot_ac):
             )
             if not matches_target:
                 continue
-
+            
             chains = (entity.get("entity_poly") or {}).get("pdbx_strand_id", "N/A")
-
+            
             for align in (entity.get("rcsb_polymer_entity_align") or []):
                 if align.get("reference_database_name") == "UniProt" and align.get("reference_database_accession") == uniprot_ac:
                     for region in (align.get("aligned_regions") or []):
@@ -116,17 +117,50 @@ def _query_graphql_batch(pdb_ids_batch, uniprot_ac):
                         ref_len = region.get("length", 0)
                         ref_end = ref_beg + ref_len - 1 if isinstance(ref_beg, int) and ref_len else "?"
                         chain_parts.append(f"{chains}({ref_beg}-{ref_end})")
-
+        
         chain_info = "; ".join(chain_parts) if chain_parts else "N/A"
-
+        
         table_data.append({
             "PDB Code": pdb_id,
             "Released Date": release_date,
             "Method": method,
             "Chain(s) [UniProt range]": chain_info
         })
-
+    
     return table_data
+
+
+def _fetch_release_dates(pdb_ids, batch_size=50):
+    """轻量 GraphQL：仅获取 release_date，用于排序"""
+    dates = {}
+    total = len(pdb_ids)
+    for i in range(0, total, batch_size):
+        batch = pdb_ids[i:i + batch_size]
+        entry_queries = []
+        for pid in batch:
+            entry_queries.append(f'    e_{pid}: entry(entry_id: "{pid}") {{ rcsb_accession_info {{ initial_release_date }} }}')
+        query = "{\n" + "\n".join(entry_queries) + "\n}"
+        try:
+            resp = requests.post("https://data.rcsb.org/graphql", json={"query": query}, timeout=30)
+            if resp.status_code == 200:
+                data = resp.json()
+                for pid in batch:
+                    key = f"e_{pid}"
+                    entry = (data.get("data") or {}).get(key)
+                    if entry:
+                        rd = entry.get("rcsb_accession_info", {}).get("initial_release_date")
+                        dates[pid] = rd if rd else "0000-00-00"
+                    else:
+                        dates[pid] = "0000-00-00"
+            else:
+                for pid in batch:
+                    dates[pid] = "0000-00-00"
+        except Exception:
+            for pid in batch:
+                dates[pid] = "0000-00-00"
+        # 避免请求过快
+        time.sleep(0.1)
+    return dates
 
 
 def get_details_via_graphql(pdb_ids, uniprot_ac, batch_size=10):
@@ -143,29 +177,37 @@ def get_details_via_graphql(pdb_ids, uniprot_ac, batch_size=10):
 def main():
     args = parse_args()
     print(f"🔍 Searching PDB entries for UniProt ID: {args.uniprot}...")
-
+    
     # 1. 获取 PDB ID 列表
     try:
         pdb_ids = get_pdb_ids_via_search(args)
     except Exception as e:
         print(f"❌ Search API 查询失败: {e}")
         return
-
+    
     print(f"\n✅ Total PDB entries found: {len(pdb_ids)}")
     print(f"Preview (first {args.limit}): {pdb_ids[:args.limit]}\n")
-
+    
     if not pdb_ids:
         return
 
-    # 2. 获取详细信息（仅获取前 limit 个）
-    print(f"📊 Fetching details via GraphQL API (first {args.limit})...")
-    table_data = get_details_via_graphql(pdb_ids[:args.limit], args.uniprot)
+    # 2. 按发布日期排序，取最新的 limit 个
+    print(f"\n📊 Fetching release dates for sorting ({len(pdb_ids)} entries)...")
+    dates = _fetch_release_dates(pdb_ids)
+    # 按日期降序排序
+    pdb_ids_sorted = sorted(pdb_ids, key=lambda x: dates.get(x, "0000-00-00"), reverse=True)
+    pdb_ids_top = pdb_ids_sorted[:args.limit]
+    print(f"Top {len(pdb_ids_top)} (latest): {pdb_ids_top}\n")
 
+    # 3. 获取详细信息
+    print(f"📊 Fetching details via GraphQL API...")
+    table_data = get_details_via_graphql(pdb_ids_top, args.uniprot)
+    
     if table_data:
         df = pd.DataFrame(table_data)
         # 按照 Released Date 降序排列（最新的在前面）
         df = df.sort_values(by="Released Date", ascending=False, na_position='last')
-
+        
         print("\n" + "="*70)
         print(df.to_string(index=False))
         print("="*70 + "\n")
